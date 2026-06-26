@@ -11,7 +11,7 @@ repositories {
     // ProtocolLib repo
     maven { url "https://repo.dmulloy2.net/repository/public/" }
     // Libby repo
-    maven { url = 'https://s01.oss.sonatype.org/content/repositories/snapshots/' }
+    maven { url = 'https://repo.alessiodp.com/snapshots/' }
 }
 
 dependencies {
