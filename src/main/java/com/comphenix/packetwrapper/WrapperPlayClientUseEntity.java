@@ -81,6 +81,11 @@ public class WrapperPlayClientUseEntity extends AbstractPacket {
 	 * @return The current Type
 	 */
 	public EntityUseAction getType() {
+		// Only detects interact on 26.1+
+		if (VersionUtil.isAbove(VersionEnum.V26_1)) {
+			return EntityUseAction.ATTACK;
+		}
+
 		if (VersionUtil.isAbove(VersionEnum.V1_17)) 
 			return handle.getEnumEntityUseActions().read(0).getAction();
 		

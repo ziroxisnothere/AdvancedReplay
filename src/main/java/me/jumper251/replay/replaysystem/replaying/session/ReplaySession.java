@@ -123,6 +123,8 @@ public class ReplaySession {
 	}
 	
 	public void resetPlayer() {
+		packetListener.resetCamera(player);
+
 		player.getInventory().clear();
 		player.getInventory().setContents(content);
 		
