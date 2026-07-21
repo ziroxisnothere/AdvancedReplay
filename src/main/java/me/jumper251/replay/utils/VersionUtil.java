@@ -88,16 +88,33 @@ public class VersionUtil {
         }
 
 		public static VersionEnum parseVersion() {
+			// Extract base version string (e.g., "1.21.1" from "1.21.1-R0.1-SNAPSHOT")
 			String version = Bukkit.getBukkitVersion().split("-")[0];
-            String[] parts = version.split("\\.");
-			String majorMinor = parts[0] + "_" + parts[1];
-			String majorMinorPatch = parts[0] + "_" + parts[1] + "_" + parts[2];
+			String[] parts = version.split("\\.");
 
-            return Arrays.stream(VersionEnum.values())
-                    .filter(v -> v.toString().equals("V" + majorMinorPatch)
-                            || (v.getPatch() != 0 && v.getPatch() < Integer.parseInt(parts[2])))
-                    .findAny()
-                    .orElse(VersionEnum.valueOf("V" + majorMinor));
+			// Safely parse major and minor components
+			String major = parts[0];
+			String minor = parts.length > 1 ? parts[1] : "0";
+
+			// Safely parse patch version; default to 0 if absent (e.g., "1.21")
+			int patchInt = parts.length > 2 ? Integer.parseInt(parts[2]) : 0;
+			String patchStr = String.valueOf(patchInt);
+
+			String majorMinor = major + "_" + minor;
+			String majorMinorPatch = majorMinor + "_" + patchStr;
+
+			return Arrays.stream(VersionEnum.values())
+					.filter(v -> v.toString().equals("V" + majorMinorPatch)
+							|| (v.getPatch() != 0 && v.getPatch() < patchInt))
+					.findAny()
+					.orElseGet(() -> {
+						try {
+							return VersionEnum.valueOf("V" + majorMinor);
+						} catch (IllegalArgumentException e) {
+							// Fallback to the latest supported version if enum constant is missing
+							return VersionEnum.values()[VersionEnum.values().length - 1];
+						}
+					});
 		}
 
 	}
