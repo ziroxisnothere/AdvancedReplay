@@ -111,7 +111,8 @@ public class VersionUtil {
 						try {
 							return VersionEnum.valueOf("V" + majorMinor);
 						} catch (IllegalArgumentException e) {
-							// Fallback to the latest supported version if enum constant is missing
+							// Log warning on startup and use the latest supported version as fallback
+							Bukkit.getLogger().warning("[AdvancedReplay] Detected untested or unsupported Minecraft version: " + version + ". Falling back to latest known version.");
 							return VersionEnum.values()[VersionEnum.values().length - 1];
 						}
 					});
