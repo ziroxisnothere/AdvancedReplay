@@ -59,7 +59,7 @@ public class WrapperPlayServerPlayerInfo extends AbstractPacket {
     }
 
     public void setData(List<PlayerInfoData> value) {
-        if (VersionUtil.isAbove(VersionUtil.VersionEnum.V1_19)) {
+        if (VersionUtil.isBetween(VersionUtil.VersionEnum.V1_19, VersionUtil.VersionEnum.V1_21_10)) {
             handle.getPlayerInfoDataLists().write(1, value);
         } else {
             handle.getPlayerInfoDataLists().write(0, value);
