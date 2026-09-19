@@ -12,10 +12,8 @@ import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.util.StringUtil;
 
-import me.jumper251.replay.ReplaySystem;
 import me.jumper251.replay.commands.AbstractCommand;
 import me.jumper251.replay.commands.SubCommand;
-import me.jumper251.replay.filesystem.saving.DefaultReplaySaver;
 import me.jumper251.replay.filesystem.saving.ReplaySaver;
 import me.jumper251.replay.replaysystem.Replay;
 import me.jumper251.replay.utils.ReplayManager;
@@ -47,19 +45,10 @@ public class ReplayStopCommand extends SubCommand {
 					return true;
 				}
 				
-				Messages.REPLAY_STOP_SAVING.arg("replay", name).send(cs);
-				replay.getRecorder().stop(true);
-			
-				String path = ReplaySaver.replaySaver instanceof DefaultReplaySaver ? ReplaySystem.getInstance().getDataFolder() + "/replays/" + name + ".replay" : null;
+					Messages.REPLAY_STOP_SAVING.arg("replay", name).send(cs);
+					replay.getRecorder().stop(true);
 
-				if (path == null) {
 					Messages.REPLAY_STOP_SAVED.arg("replay", name).send(cs);
-				} else {
-					Messages.REPLAY_STOP_SAVED_TO
-							.arg("replay", name)
-							.arg("path", path)
-							.send(cs);
-				}
 			}
 			
 		} else {
