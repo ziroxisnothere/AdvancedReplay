@@ -1,13 +1,15 @@
 package me.jumper251.replay.commands.replay;
 
-import java.util.UUID;
 import java.util.Arrays;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import net.md_5.bungee.api.ChatMessageType;
+import net.md_5.bungee.api.chat.TextComponent;
 import me.jumper251.replay.ReplaySystem;
 import me.jumper251.replay.api.ReplayAPI;
 import me.jumper251.replay.commands.AbstractCommand;
@@ -18,11 +20,18 @@ import me.jumper251.replay.filesystem.saving.ReplaySaver;
 import me.jumper251.replay.replaysystem.replaying.ReplayHelper;
 import me.jumper251.replay.utils.ReplayManager;
 import org.bukkit.Bukkit;
+import org.bukkit.ChatColor;
+import org.bukkit.Location;
+import org.bukkit.Material;
+import org.bukkit.block.Block;
+import org.bukkit.block.Sign;
+import org.bukkit.block.data.BlockData;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
-import org.bukkit.event.player.AsyncPlayerChatEvent;
+import org.bukkit.event.block.SignChangeEvent;
 import org.bukkit.scheduler.BukkitRunnable;
+import org.bukkit.scheduler.BukkitTask;
 
 public class ReplayGuiCommand extends SubCommand {
 
@@ -30,7 +39,7 @@ public class ReplayGuiCommand extends SubCommand {
     private static final ConcurrentMap<UUID, PendingReplay> PENDING = new ConcurrentHashMap<>();
 
     public ReplayGuiCommand(AbstractCommand parent) {
-        super(parent, "gui", "Starts a replay by asking for its name and duration in chat", "gui [-force]", true);
+        super(parent, "gui", "Starts a replay by asking for its name and duration in a sign", "gui [-force]", true);
     }
 
     @Override
@@ -54,84 +63,148 @@ public class ReplayGuiCommand extends SubCommand {
     }
 
     private static void begin(Player player, boolean force) {
-        PENDING.put(player.getUniqueId(), new PendingReplay(force));
-        Messages.REPLAY_GUI_ENTER_NAME.send(player);
-        if (force) {
-            Messages.REPLAY_GUI_FORCE.send(player);
-        }
+        cancel(player);
+        PendingReplay pending = new PendingReplay(force);
+        PENDING.put(player.getUniqueId(), pending);
+        openSign(player, pending);
     }
 
-    /**
-     * Handles a chat message for an active /replay gui flow.
-     * This method is called from the asynchronous chat event and schedules all Bukkit/API work back on the main thread.
-     */
-    public static boolean handleChat(AsyncPlayerChatEvent event) {
+    /** Handles a submitted temporary sign without sending anything to chat. */
+    public static void handleSignChange(SignChangeEvent event) {
         Player player = event.getPlayer();
         PendingReplay pending = PENDING.get(player.getUniqueId());
-        if (pending == null) return false;
+        if (pending == null || !event.getBlock().equals(pending.block)) return;
 
         event.setCancelled(true);
-        String answer = event.getMessage().trim();
+        String answer = event.getLine(0) == null ? "" : event.getLine(0).trim();
+        restoreSign(pending);
 
         if (answer.equalsIgnoreCase("cancel")) {
             PENDING.remove(player.getUniqueId());
-            Messages.REPLAY_GUI_CANCELLED.send(player);
-            return true;
+            return;
         }
 
         if (pending.name == null) {
             if (answer.length() > 40 || !DefaultReplaySaver.isValidName(answer)) {
-                Messages.REPLAY_GUI_INVALID_NAME.send(player);
-                return true;
+                showActionBar(player, Messages.REPLAY_GUI_INVALID_NAME.getMessage());
+                reopen(player, pending);
+                return;
             }
 
             pending.name = answer;
-            Messages.REPLAY_GUI_ENTER_DURATION.send(player);
-            return true;
+            pending.phase = Phase.DURATION;
+            openSign(player, pending);
+            return;
         }
 
         Long durationSeconds = parseDuration(answer);
         if (durationSeconds == null || durationSeconds <= 0 || durationSeconds > Integer.MAX_VALUE / 20L) {
-            Messages.REPLAY_GUI_INVALID_DURATION.send(player);
-            return true;
+            showActionBar(player, Messages.REPLAY_GUI_INVALID_DURATION.getMessage());
+            reopen(player, pending);
+            return;
         }
 
         PENDING.remove(player.getUniqueId());
-        String name = pending.name;
+        cancelCleanup(pending);
         int durationTicks = (int) (durationSeconds * 20L);
-
-        Bukkit.getScheduler().runTask(ReplaySystem.getInstance(), () -> startReplay(player, name, durationTicks, durationSeconds, pending.force));
-        return true;
+        String name = pending.name;
+        Bukkit.getScheduler().runTask(ReplaySystem.getInstance(),
+                () -> startReplay(player, name, durationTicks, durationSeconds, pending.force));
     }
 
     public static void cancel(Player player) {
-        PENDING.remove(player.getUniqueId());
+        PendingReplay pending = PENDING.remove(player.getUniqueId());
+        if (pending != null) restoreSign(pending);
+    }
+
+    private static void openSign(Player player, PendingReplay pending) {
+        Bukkit.getScheduler().runTask(ReplaySystem.getInstance(), () -> {
+            if (!player.isOnline() || PENDING.get(player.getUniqueId()) != pending) return;
+
+            if (pending.block == null) {
+                pending.block = findTemporaryBlock(player);
+                pending.originalData = pending.block.getBlockData().clone();
+            } else {
+                pending.block.setBlockData(pending.originalData, false);
+            }
+
+            pending.block.setType(Material.OAK_SIGN, false);
+            Sign sign = (Sign) pending.block.getState();
+            sign.setLine(0, "");
+            sign.setLine(1, pending.phase == Phase.NAME ? "Enter name" : "Duration 60s/120m");
+            sign.setLine(2, "Line 1");
+            sign.setLine(3, "Submit");
+            sign.update(false, false);
+            player.openSign(sign);
+            scheduleCleanup(player, pending);
+        });
+    }
+
+    private static void reopen(Player player, PendingReplay pending) {
+        Bukkit.getScheduler().runTaskLater(ReplaySystem.getInstance(), () -> openSign(player, pending), 1L);
+    }
+
+    private static Block findTemporaryBlock(Player player) {
+        Location base = player.getLocation().getBlock().getLocation();
+        Block below = base.clone().subtract(0, 1, 0).getBlock();
+        if (below.getType().isAir() || below.isPassable()) return below;
+        return base.getBlock();
+    }
+
+    private static void restoreSign(PendingReplay pending) {
+        cancelCleanup(pending);
+        if (pending.block != null && pending.originalData != null
+                && pending.block.getType() == Material.OAK_SIGN) {
+            pending.block.setBlockData(pending.originalData, false);
+        }
+    }
+
+    private static void scheduleCleanup(Player player, PendingReplay pending) {
+        cancelCleanup(pending);
+        pending.cleanupTask = new BukkitRunnable() {
+            @Override
+            public void run() {
+                if (PENDING.remove(player.getUniqueId(), pending)) restoreSign(pending);
+            }
+        }.runTaskLater(ReplaySystem.getInstance(), 20L * 120L);
+    }
+
+    private static void cancelCleanup(PendingReplay pending) {
+        if (pending.cleanupTask != null) {
+            pending.cleanupTask.cancel();
+            pending.cleanupTask = null;
+        }
+    }
+
+    private static void showActionBar(Player player, String message) {
+        player.spigot().sendMessage(ChatMessageType.ACTION_BAR,
+                TextComponent.fromLegacyText(ChatColor.translateAlternateColorCodes('&', message)));
     }
 
     private static void startReplay(Player player, String name, int durationTicks, long durationSeconds, boolean force) {
         if (!player.isOnline()) return;
 
         if (ReplayHelper.replaySessions.containsKey(player.getName())) {
-            Messages.REPLAY_GUI_ALREADY_WATCHING.send(player);
+            showActionBar(player, Messages.REPLAY_GUI_ALREADY_WATCHING.getMessage());
             return;
         }
         if (ReplayManager.activeReplays.containsKey(name)) {
-            Messages.REPLAY_GUI_ACTIVE_EXISTS.send(player);
+            showActionBar(player, Messages.REPLAY_GUI_ACTIVE_EXISTS.getMessage());
             return;
         }
         if (ReplaySaver.exists(name) && !force) {
-            Messages.REPLAY_GUI_SAVED_EXISTS.send(player);
+            showActionBar(player, Messages.REPLAY_GUI_SAVED_EXISTS.getMessage());
             return;
         }
 
-        if (force) {
-            ReplaySaver.delete(name);
-        }
+        if (force) ReplaySaver.delete(name);
 
-        // Cast explicitly to select the CommandSender overload; otherwise
-        // Java selects recordReplay(String, Player...) and the creator becomes null.
+        // Cast explicitly to select the CommandSender overload and preserve the player as creator.
         ReplayAPI.getInstance().recordReplay(name, (CommandSender) player, player);
-        Messages.REPLAY_GUI_STARTED.arg("replay", name).arg("duration", durationSeconds).send(player);
+        showActionBar(player, Messages.REPLAY_GUI_STARTED
+                .arg("replay", name)
+                .arg("duration", durationSeconds)
+                .build());
 
         new BukkitRunnable() {
             @Override
@@ -153,12 +226,22 @@ public class ReplayGuiCommand extends SubCommand {
         }
     }
 
-    private static final class PendingReplay {
-        private String name;
-		private final boolean force;
+    private enum Phase {
+        NAME,
+        DURATION
+    }
 
-		private PendingReplay(boolean force) {
-			this.force = force;
-		}
+    private static final class PendingReplay {
+        private final boolean force;
+        private final Phase initialPhase = Phase.NAME;
+        private Phase phase = initialPhase;
+        private String name;
+        private Block block;
+        private BlockData originalData;
+        private BukkitTask cleanupTask;
+
+        private PendingReplay(boolean force) {
+            this.force = force;
+        }
     }
 }

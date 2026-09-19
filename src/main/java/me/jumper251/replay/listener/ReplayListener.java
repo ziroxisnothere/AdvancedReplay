@@ -22,7 +22,7 @@ import org.bukkit.event.entity.FoodLevelChangeEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.player.PlayerChangedWorldEvent;
-import org.bukkit.event.player.AsyncPlayerChatEvent;
+import org.bukkit.event.block.SignChangeEvent;
 import org.bukkit.event.player.PlayerDropItemEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
@@ -45,8 +45,8 @@ import me.jumper251.replay.replaysystem.utils.entities.INPC;
 public class ReplayListener extends AbstractListener {
 
 	@EventHandler(priority = EventPriority.HIGHEST)
-	public void onChat(AsyncPlayerChatEvent e) {
-		ReplayGuiCommand.handleChat(e);
+	public void onSignChange(SignChangeEvent e) {
+		ReplayGuiCommand.handleSignChange(e);
 	}
 
 	@SuppressWarnings("deprecation")
