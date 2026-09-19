@@ -5,6 +5,7 @@ import me.jumper251.replay.ReplaySystem;
 import me.jumper251.replay.replaysystem.Replay;
 import me.jumper251.replay.replaysystem.data.ReplayData;
 import me.jumper251.replay.utils.LogUtils;
+import me.jumper251.replay.utils.ReplayVisibility;
 import me.jumper251.replay.utils.fetcher.Acceptor;
 import me.jumper251.replay.utils.fetcher.Consumer;
 
@@ -174,8 +175,35 @@ public class DefaultReplaySaver implements IReplaySaver {
         return files;
     }
 
+    public List<String> getReplayKeysForCreator(String creator) {
+        List<String> keys = new ArrayList<>();
+        if (creator == null || !DIR.exists()) return keys;
+        String prefix = creator + "-";
+        File[] replayFiles = DIR.listFiles((dir, fileName) -> fileName.startsWith(prefix) && fileName.endsWith(".replay"));
+        if (replayFiles != null) {
+            for (File file : replayFiles) keys.add(file.getName().replaceAll("\\.replay$", ""));
+        }
+        return keys;
+    }
+
+    public List<String> getPublicReplayKeys(String viewer) {
+        List<String> keys = new ArrayList<>();
+        if (!DIR.exists()) return keys;
+        File[] replayFiles = DIR.listFiles((dir, fileName) -> fileName.endsWith(".replay"));
+        if (replayFiles != null) {
+            for (File file : replayFiles) {
+                String key = file.getName().replaceAll("\\.replay$", "");
+                int separator = key.indexOf('-');
+                if (separator > 0 && !key.substring(0, separator).equalsIgnoreCase(viewer)
+                        && ReplayVisibility.isPublic(key)) keys.add(key);
+            }
+        }
+        return keys;
+    }
+
     private static String storageName(String creator, String replayName) {
         String safeCreator = creator == null || creator.isBlank() ? "CONSOLE" : creator;
+        if (replayName.startsWith(safeCreator + "-")) return replayName;
         return safeCreator + "-" + replayName;
     }
 

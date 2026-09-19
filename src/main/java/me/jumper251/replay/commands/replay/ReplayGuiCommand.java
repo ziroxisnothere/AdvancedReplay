@@ -21,6 +21,7 @@ import me.jumper251.replay.filesystem.saving.DefaultReplaySaver;
 import me.jumper251.replay.filesystem.saving.ReplaySaver;
 import me.jumper251.replay.replaysystem.replaying.ReplayHelper;
 import me.jumper251.replay.utils.ReplayManager;
+import me.jumper251.replay.utils.ReplayVisibility;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Material;
@@ -40,13 +41,17 @@ public class ReplayGuiCommand extends SubCommand {
     private static final Pattern DURATION_PATTERN = Pattern.compile("^(\\d+)([sm])$", Pattern.CASE_INSENSITIVE);
     private static final String LIST_TITLE = "§8Your Replays";
     private static final String DELETE_TITLE = "§8Delete Replay?";
+    private static final String VISIBILITY_TITLE = "§8Replay Visibility";
     private static final int CREATE_SLOT = 49;
     private static final int CANCEL_DELETE_SLOT = 11;
     private static final int CONFIRM_DELETE_SLOT = 15;
+    private static final int PRIVATE_SLOT = 11;
+    private static final int PUBLIC_SLOT = 15;
 
     private static final ConcurrentMap<UUID, PendingReplay> PENDING = new ConcurrentHashMap<>();
     private static final ConcurrentMap<UUID, Map<Integer, String>> LIST_ITEMS = new ConcurrentHashMap<>();
     private static final ConcurrentMap<UUID, String> DELETE_ITEMS = new ConcurrentHashMap<>();
+    private static final ConcurrentMap<UUID, String> VISIBILITY_ITEMS = new ConcurrentHashMap<>();
     private static final ConcurrentMap<UUID, Boolean> FORCE_MODE = new ConcurrentHashMap<>();
 
     public ReplayGuiCommand(AbstractCommand parent) {
@@ -69,20 +74,22 @@ public class ReplayGuiCommand extends SubCommand {
     }
 
     public static void openList(Player player) {
-        List<String> replays = getPlayerReplays(player.getName());
+        Map<String, String> replays = getVisibleReplays(player.getName());
         Inventory inventory = Bukkit.createInventory(null, 54, LIST_TITLE);
         Map<Integer, String> items = new HashMap<>();
 
         int slot = 0;
-        for (String replay : replays) {
+        for (Map.Entry<String, String> entry : replays.entrySet()) {
             if (slot >= 45) break;
+            String key = entry.getKey();
+            String replay = entry.getValue();
             ItemStack item = new ItemStack(Material.PAPER);
             ItemMeta meta = item.getItemMeta();
             meta.setDisplayName("§e" + replay);
-            meta.setLore(Arrays.asList("§7Left click: §aPlay", "§7Right click: §cDelete"));
+            meta.setLore(Arrays.asList("§7Left click: §aPlay", "§7Right click: §bVisibility", "§7Press Q: §cRemove"));
             item.setItemMeta(meta);
             inventory.setItem(slot, item);
-            items.put(slot, replay);
+            items.put(slot, key);
             slot++;
         }
 
@@ -115,8 +122,10 @@ public class ReplayGuiCommand extends SubCommand {
             String replay = LIST_ITEMS.getOrDefault(player.getUniqueId(), Collections.emptyMap()).get(event.getRawSlot());
             if (replay == null) return true;
 
-            if (event.getClick() == ClickType.RIGHT) {
+            if (event.getClick() == ClickType.DROP) {
                 openDeleteConfirmation(player, replay);
+            } else if (event.getClick() == ClickType.RIGHT) {
+                openVisibilityMenu(player, replay);
             } else if (event.getClick() == ClickType.LEFT) {
                 player.closeInventory();
                 play(player, replay);
@@ -133,8 +142,20 @@ public class ReplayGuiCommand extends SubCommand {
                 String replay = DELETE_ITEMS.remove(player.getUniqueId());
                 if (replay != null) {
                     ReplaySaver.delete(replay);
+                    ReplayVisibility.remove(replay);
                     openList(player);
                 }
+            }
+            return true;
+        }
+
+        if (VISIBILITY_TITLE.equals(title)) {
+            event.setCancelled(true);
+            String key = VISIBILITY_ITEMS.get(player.getUniqueId());
+            if (key != null && (event.getRawSlot() == PRIVATE_SLOT || event.getRawSlot() == PUBLIC_SLOT)) {
+                ReplayVisibility.setPublic(key, event.getRawSlot() == PUBLIC_SLOT);
+                VISIBILITY_ITEMS.remove(player.getUniqueId());
+                openList(player);
             }
             return true;
         }
@@ -151,6 +172,15 @@ public class ReplayGuiCommand extends SubCommand {
         player.openInventory(inventory);
     }
 
+    private static void openVisibilityMenu(Player player, String key) {
+        Inventory inventory = Bukkit.createInventory(null, 27, VISIBILITY_TITLE);
+        inventory.setItem(PRIVATE_SLOT, button(Material.RED_CONCRETE, "§cPrivate"));
+        inventory.setItem(13, button(Material.PAPER, "§e" + displayName(key)));
+        inventory.setItem(PUBLIC_SLOT, button(Material.GREEN_CONCRETE, "§aPublic"));
+        VISIBILITY_ITEMS.put(player.getUniqueId(), key);
+        player.openInventory(inventory);
+    }
+
     private static ItemStack button(Material material, String name) {
         ItemStack item = new ItemStack(material);
         ItemMeta meta = item.getItemMeta();
@@ -159,25 +189,35 @@ public class ReplayGuiCommand extends SubCommand {
         return item;
     }
 
-    private static List<String> getPlayerReplays(String playerName) {
+    private static Map<String, String> getVisibleReplays(String playerName) {
+        Map<String, String> result = new java.util.LinkedHashMap<>();
         if (ReplaySaver.replaySaver instanceof DefaultReplaySaver) {
-            return ((DefaultReplaySaver) ReplaySaver.replaySaver).getReplaysForCreator(playerName);
-        }
-
-        if (ReplaySaver.replaySaver instanceof DatabaseReplaySaver) {
-            List<String> result = new java.util.ArrayList<>();
-            DatabaseReplaySaver.replayCache.values().stream()
-                    .filter(info -> playerName.equals(info.getCreator()))
-                    .forEach(info -> result.add(info.getID()));
+            DefaultReplaySaver saver = (DefaultReplaySaver) ReplaySaver.replaySaver;
+            for (String key : saver.getReplayKeysForCreator(playerName)) result.put(key, displayName(key));
+            for (String key : saver.getPublicReplayKeys(playerName)) result.put(key, displayName(key));
             return result;
         }
 
-        return new java.util.ArrayList<>(ReplaySaver.getReplays());
+        if (ReplaySaver.replaySaver instanceof DatabaseReplaySaver) {
+            Map<String, String> databaseResult = new java.util.LinkedHashMap<>();
+            DatabaseReplaySaver.replayCache.values().stream()
+                    .filter(info -> playerName.equals(info.getCreator()) || ReplayVisibility.isPublic(info.getID()))
+                    .forEach(info -> databaseResult.put(info.getID(), info.getID()));
+            return databaseResult;
+        }
+
+        for (String key : ReplaySaver.getReplays()) result.put(key, key);
+        return result;
     }
 
     private static void play(Player player, String name) {
         if (ReplayHelper.replaySessions.containsKey(player.getName())) return;
         ReplayAPI.getInstance().playReplay(name, player);
+    }
+
+    private static String displayName(String key) {
+        int separator = key.indexOf('-');
+        return separator >= 0 ? key.substring(separator + 1) : key;
     }
 
     public static void begin(Player player) {
@@ -230,29 +270,31 @@ public class ReplayGuiCommand extends SubCommand {
         PENDING.remove(player.getUniqueId());
         LIST_ITEMS.remove(player.getUniqueId());
         DELETE_ITEMS.remove(player.getUniqueId());
+        VISIBILITY_ITEMS.remove(player.getUniqueId());
         FORCE_MODE.remove(player.getUniqueId());
     }
 
     private static void startReplay(Player player, String name, int durationTicks, long durationSeconds, boolean force) {
         if (!player.isOnline()) return;
         if (ReplayHelper.replaySessions.containsKey(player.getName())) return;
-        if (ReplayManager.activeReplays.containsKey(name)) {
+        String storageKey = ReplayVisibility.key(player.getName(), name);
+        if (ReplayManager.activeReplays.containsKey(storageKey)) {
             Messages.REPLAY_GUI_ACTIVE_EXISTS.send(player);
             return;
         }
-        if (ReplaySaver.exists(name) && !force) {
+        if (ReplaySaver.exists(storageKey) && !force) {
             Messages.REPLAY_GUI_SAVED_EXISTS.send(player);
             return;
         }
-        if (force) ReplaySaver.delete(name);
+        if (force) ReplaySaver.delete(storageKey);
 
-        ReplayAPI.getInstance().recordReplay(name, (CommandSender) player, player);
+        ReplayAPI.getInstance().recordReplay(storageKey, (CommandSender) player, player);
         Messages.REPLAY_GUI_STARTED.arg("replay", name).arg("duration", durationSeconds).send(player);
 
         new BukkitRunnable() {
             @Override
             public void run() {
-                ReplayAPI.getInstance().stopReplay(name, true, true);
+                ReplayAPI.getInstance().stopReplay(storageKey, true, true);
             }
         }.runTaskLater(ReplaySystem.getInstance(), durationTicks);
     }
