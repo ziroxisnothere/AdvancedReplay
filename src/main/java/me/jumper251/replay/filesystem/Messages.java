@@ -40,8 +40,8 @@ public class Messages {
     public static final ConfigMessage REPLAY_START_TOO_LONG = new ConfigMessage("replay.start_too_long", "&cReplay name is too long.");
     public static final ConfigMessage REPLAY_START_INVALID_NAME = new ConfigMessage("replay.start_name_invalid", "&cReplay name contains invalid characters.");
 
-    public static final ConfigMessage REPLAY_GUI_ENTER_NAME = new ConfigMessage("replay.gui.enter_name", "Enter the Replay name in chat (or type cancel):");
-    public static final ConfigMessage REPLAY_GUI_ENTER_DURATION = new ConfigMessage("replay.gui.enter_duration", "Enter the duration (for example: 120m or 60s):");
+    public static final ConfigMessage REPLAY_GUI_ENTER_NAME = new ConfigMessage("replay.gui.enter_name", "Enter Your Replay Name:");
+    public static final ConfigMessage REPLAY_GUI_ENTER_DURATION = new ConfigMessage("replay.gui.enter_duration", "Enter Your Duration Time:");
     public static final ConfigMessage REPLAY_GUI_CANCELLED = new ConfigMessage("replay.gui.cancelled", "Replay GUI setup cancelled.");
     public static final ConfigMessage REPLAY_GUI_FORCE = new ConfigMessage("replay.gui.force", "Force mode enabled: an existing Replay with this name will be overwritten.");
     public static final ConfigMessage REPLAY_GUI_INVALID_NAME = new ConfigMessage("replay.gui.invalid_name", "Invalid name. Use only letters, numbers, '.', '-' or '_', max 40 characters.");

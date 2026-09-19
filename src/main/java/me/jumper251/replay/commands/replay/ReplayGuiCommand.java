@@ -77,7 +77,7 @@ public class ReplayGuiCommand extends SubCommand {
         if (pending == null || !event.getBlock().equals(pending.block)) return;
 
         event.setCancelled(true);
-        String answer = event.getLine(0) == null ? "" : event.getLine(0).trim();
+        String answer = event.getLine(1) == null ? "" : event.getLine(1).trim();
         restoreBlock(pending);
 
         if (answer.equalsIgnoreCase("cancel")) {
@@ -138,10 +138,12 @@ public class ReplayGuiCommand extends SubCommand {
 
             pending.block.setType(Material.OAK_SIGN, false);
             Sign sign = (Sign) pending.block.getState();
-            sign.setLine(0, "");
-            sign.setLine(1, pending.phase == Phase.NAME ? "Enter name" : "Duration 60s/120m");
-            sign.setLine(2, "Line 1");
-            sign.setLine(3, "Submit");
+            sign.setLine(0, ChatColor.translateAlternateColorCodes('&', pending.phase == Phase.NAME
+                    ? Messages.REPLAY_GUI_ENTER_NAME.getMessage()
+                    : Messages.REPLAY_GUI_ENTER_DURATION.getMessage()));
+            sign.setLine(1, "");
+            sign.setLine(2, "");
+            sign.setLine(3, "");
             sign.update(false, false);
             player.openSign(sign);
             scheduleCleanup(player, pending);
