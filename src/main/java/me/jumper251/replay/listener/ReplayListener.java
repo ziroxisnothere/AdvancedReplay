@@ -17,6 +17,8 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.block.Action;
+import org.bukkit.event.block.BlockBreakEvent;
+import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.FoodLevelChangeEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
@@ -132,9 +134,23 @@ public class ReplayListener extends AbstractListener {
 		}
 	}
 	
-	@SuppressWarnings("deprecation")
-	@EventHandler
-	public void onClick(InventoryClickEvent e) {
+		@EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+		public void onBlockBreak(BlockBreakEvent e) {
+			if (ReplayHelper.replaySessions.containsKey(e.getPlayer().getName())) {
+				e.setCancelled(true);
+			}
+		}
+
+		@EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+		public void onBlockPlace(BlockPlaceEvent e) {
+			if (ReplayHelper.replaySessions.containsKey(e.getPlayer().getName())) {
+				e.setCancelled(true);
+			}
+		}
+
+		@SuppressWarnings("deprecation")
+		@EventHandler
+		public void onClick(InventoryClickEvent e) {
 		if (ReplayGuiCommand.handleInventoryClick(e)) return;
 
 	        if (e.getWhoClicked() instanceof Player) {
