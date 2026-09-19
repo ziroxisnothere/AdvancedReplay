@@ -28,6 +28,10 @@ permissions:
     default: op
   replay.command.list:
     default: op
+  replay.command.leave:
+    default: op
+  replay.command.version:
+    default: op
   replay.command.delete:
     default: op
   replay.admin:

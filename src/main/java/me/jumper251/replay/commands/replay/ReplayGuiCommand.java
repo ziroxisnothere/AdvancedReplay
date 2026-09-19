@@ -47,6 +47,7 @@ public class ReplayGuiCommand extends SubCommand {
     private static final ConcurrentMap<UUID, PendingReplay> PENDING = new ConcurrentHashMap<>();
     private static final ConcurrentMap<UUID, Map<Integer, String>> LIST_ITEMS = new ConcurrentHashMap<>();
     private static final ConcurrentMap<UUID, String> DELETE_ITEMS = new ConcurrentHashMap<>();
+    private static final ConcurrentMap<UUID, Boolean> FORCE_MODE = new ConcurrentHashMap<>();
 
     public ReplayGuiCommand(AbstractCommand parent) {
         super(parent, "gui", "Shows your Replays", "gui", true);
@@ -54,7 +55,10 @@ public class ReplayGuiCommand extends SubCommand {
 
     @Override
     public boolean execute(CommandSender sender, Command command, String label, String[] args) {
-        if (args.length > 1) return false;
+        if (args.length > 2) return false;
+        boolean force = args.length == 2 && args[1].equalsIgnoreCase("-force");
+        if (args.length == 2 && !force) return false;
+        FORCE_MODE.put(((Player) sender).getUniqueId(), force);
         openList((Player) sender);
         return true;
     }
@@ -104,7 +108,7 @@ public class ReplayGuiCommand extends SubCommand {
 
             if (event.getRawSlot() == CREATE_SLOT) {
                 player.closeInventory();
-                begin(player, false);
+                begin(player, FORCE_MODE.getOrDefault(player.getUniqueId(), false));
                 return true;
             }
 
@@ -226,6 +230,7 @@ public class ReplayGuiCommand extends SubCommand {
         PENDING.remove(player.getUniqueId());
         LIST_ITEMS.remove(player.getUniqueId());
         DELETE_ITEMS.remove(player.getUniqueId());
+        FORCE_MODE.remove(player.getUniqueId());
     }
 
     private static void startReplay(Player player, String name, int durationTicks, long durationSeconds, boolean force) {
