@@ -14,7 +14,7 @@ public class ReplayVersionCommand extends SubCommand {
     @Override
     public boolean execute(CommandSender sender, Command command, String label, String[] args) {
         if (args.length != 1) return false;
-        sender.sendMessage("§b§lMoonXReplay By Zirox");
+        sender.sendMessage("§bMoonXReplay by §eZirox");
         return true;
     }
 }
