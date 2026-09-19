@@ -1,7 +1,7 @@
-name: AdvancedReplay
+name: MoonXReplay
 version: '${version}'
 main: me.jumper251.replay.ReplaySystem
-author: Jumper251
+author: Zirox
 depend: [ProtocolLib]
 api-version: 1.13
 commands:
@@ -24,17 +24,11 @@ permissions:
     default: op
   replay.command.play:
     default: op
-  replay.command.reload:
-    default: op
   replay.command.overview:
     default: op
   replay.command.list:
     default: op
-  replay.command.migrate:
-    default: op
   replay.command.delete:
-    default: op
-  replay.command.jump:
     default: op
   replay.admin:
     description: Permission to receive update notifications

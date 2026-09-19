@@ -9,7 +9,7 @@ import me.jumper251.replay.filesystem.Messages;
 public class ReplayCommand extends AbstractCommand {
 
 	public ReplayCommand() {
-		super("Replay", ReplaySystem.PREFIX + "AdvancedReplay §ev" + ReplaySystem.getInstance().getDescription().getVersion(), "replay.command");
+		super("Replay", ReplaySystem.PREFIX + "MoonXReplay §ev" + ReplaySystem.getInstance().getDescription().getVersion(), "replay.command");
 	}
 
 	@Override
@@ -28,14 +28,11 @@ public class ReplayCommand extends AbstractCommand {
 					new ReplayGuiCommand(this),
 					new ReplayStopCommand(this).addAlias("save"),
 					new ReplayPlayCommand(this),
-				new ReplayDeleteCommand(this).addAlias("remove"),
-				new ReplayJumpCommand(this),
-				new ReplayLeaveCommand(this),
-				new ReplayInfoCommand(this),
-				new ReplayListCommand(this), 
-				new ReplayReloadCommand(this),
-				new ReplayReformatCommand(this),
-				new ReplayMigrateCommand(this) };
+					new ReplayDeleteCommand(this).addAlias("remove"),
+					new ReplayLeaveCommand(this),
+					new ReplayInfoCommand(this),
+					new ReplayListCommand(this),
+					new ReplayVersionCommand(this) };
 	}
 
 }

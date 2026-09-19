@@ -14,7 +14,7 @@ import java.util.Map;
 
 public class Messages {
 
-    public static final ConfigMessage PREFIX = new ConfigMessage("prefix", "&8[&3Replay&8] &r&7", false);
+    public static final ConfigMessage PREFIX = new ConfigMessage("prefix", "&bReplay &r", false);
 
     public static final ConfigMessage COMMAND_SYNTAX = new ConfigMessage("command.syntax", "Usage: &6/{command} {args}");
     public static final ConfigMessage COMMAND_OVERVIEW = new ConfigMessage("command.overview", "&6/{command} {args} &7 - {desc}", false);
@@ -141,7 +141,13 @@ public class Messages {
 
         for (Map.Entry<String, ConfigMessage> entry : MESSAGES.entrySet()) {
             if (cfg.contains(entry.getKey())) {
-                entry.getValue().setMessage(cfg.getString(entry.getKey()));
+                String configuredMessage = cfg.getString(entry.getKey());
+                if (entry.getValue() == PREFIX && "&8[&3Replay&8] &r&7".equals(configuredMessage)) {
+                    configuredMessage = PREFIX.getDefaultMessage();
+                    cfg.set(entry.getKey(), configuredMessage);
+                    update = true;
+                }
+                entry.getValue().setMessage(configuredMessage);
             } else {
                 cfg.set(entry.getKey(), entry.getValue().getDefaultMessage());
                 entry.getValue().setMessage(entry.getValue().getDefaultMessage());
