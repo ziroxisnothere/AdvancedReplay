@@ -1,6 +1,8 @@
 package me.jumper251.replay.commands.replay;
 
 import java.util.UUID;
+import java.util.Arrays;
+import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.regex.Matcher;
@@ -10,6 +12,7 @@ import me.jumper251.replay.ReplaySystem;
 import me.jumper251.replay.api.ReplayAPI;
 import me.jumper251.replay.commands.AbstractCommand;
 import me.jumper251.replay.commands.SubCommand;
+import me.jumper251.replay.filesystem.Messages;
 import me.jumper251.replay.filesystem.saving.DefaultReplaySaver;
 import me.jumper251.replay.filesystem.saving.ReplaySaver;
 import me.jumper251.replay.replaysystem.replaying.ReplayHelper;
@@ -27,18 +30,35 @@ public class ReplayGuiCommand extends SubCommand {
     private static final ConcurrentMap<UUID, PendingReplay> PENDING = new ConcurrentHashMap<>();
 
     public ReplayGuiCommand(AbstractCommand parent) {
-        super(parent, "gui", "Starts a replay by asking for its name and duration in chat", "gui", true);
+        super(parent, "gui", "Starts a replay by asking for its name and duration in chat", "gui [-force]", true);
     }
 
     @Override
     public boolean execute(CommandSender sender, Command command, String label, String[] args) {
-        begin((Player) sender);
+        if (args.length > 2) return false;
+
+        boolean force = args.length == 2 && args[1].equalsIgnoreCase("-force");
+        if (args.length == 2 && !force) return false;
+
+        begin((Player) sender, force);
         return true;
     }
 
+    @Override
+    public List<String> onTab(CommandSender sender, Command command, String label, String[] args) {
+        return args.length == 2 ? Arrays.asList("-force") : null;
+    }
+
     public static void begin(Player player) {
-        PENDING.put(player.getUniqueId(), new PendingReplay());
-        player.sendMessage(ReplaySystem.PREFIX + "Enter the Replay name in chat (or type cancel):");
+        begin(player, false);
+    }
+
+    private static void begin(Player player, boolean force) {
+        PENDING.put(player.getUniqueId(), new PendingReplay(force));
+        Messages.REPLAY_GUI_ENTER_NAME.send(player);
+        if (force) {
+            Messages.REPLAY_GUI_FORCE.send(player);
+        }
     }
 
     /**
@@ -55,24 +75,24 @@ public class ReplayGuiCommand extends SubCommand {
 
         if (answer.equalsIgnoreCase("cancel")) {
             PENDING.remove(player.getUniqueId());
-            player.sendMessage(ReplaySystem.PREFIX + "Replay GUI setup cancelled.");
+            Messages.REPLAY_GUI_CANCELLED.send(player);
             return true;
         }
 
         if (pending.name == null) {
             if (answer.length() > 40 || !DefaultReplaySaver.isValidName(answer)) {
-                player.sendMessage(ReplaySystem.PREFIX + "Invalid name. Use only letters, numbers, '.', '-' or '_', max 40 characters.");
+                Messages.REPLAY_GUI_INVALID_NAME.send(player);
                 return true;
             }
 
             pending.name = answer;
-            player.sendMessage(ReplaySystem.PREFIX + "Enter the duration (for example: 120m or 60s):");
+            Messages.REPLAY_GUI_ENTER_DURATION.send(player);
             return true;
         }
 
         Long durationSeconds = parseDuration(answer);
         if (durationSeconds == null || durationSeconds <= 0 || durationSeconds > Integer.MAX_VALUE / 20L) {
-            player.sendMessage(ReplaySystem.PREFIX + "Invalid duration. Use a positive value ending in s or m, for example 60s or 120m.");
+            Messages.REPLAY_GUI_INVALID_DURATION.send(player);
             return true;
         }
 
@@ -80,7 +100,7 @@ public class ReplayGuiCommand extends SubCommand {
         String name = pending.name;
         int durationTicks = (int) (durationSeconds * 20L);
 
-        Bukkit.getScheduler().runTask(ReplaySystem.getInstance(), () -> startReplay(player, name, durationTicks, durationSeconds));
+        Bukkit.getScheduler().runTask(ReplaySystem.getInstance(), () -> startReplay(player, name, durationTicks, durationSeconds, pending.force));
         return true;
     }
 
@@ -88,24 +108,28 @@ public class ReplayGuiCommand extends SubCommand {
         PENDING.remove(player.getUniqueId());
     }
 
-    private static void startReplay(Player player, String name, int durationTicks, long durationSeconds) {
+    private static void startReplay(Player player, String name, int durationTicks, long durationSeconds, boolean force) {
         if (!player.isOnline()) return;
 
         if (ReplayHelper.replaySessions.containsKey(player.getName())) {
-            player.sendMessage(ReplaySystem.PREFIX + "You are already watching a Replay.");
+            Messages.REPLAY_GUI_ALREADY_WATCHING.send(player);
             return;
         }
         if (ReplayManager.activeReplays.containsKey(name)) {
-            player.sendMessage(ReplaySystem.PREFIX + "A Replay with that name is already being recorded.");
+            Messages.REPLAY_GUI_ACTIVE_EXISTS.send(player);
             return;
         }
-        if (ReplaySaver.exists(name)) {
-            player.sendMessage(ReplaySystem.PREFIX + "A saved Replay with that name already exists.");
+        if (ReplaySaver.exists(name) && !force) {
+            Messages.REPLAY_GUI_SAVED_EXISTS.send(player);
             return;
         }
 
+        if (force) {
+            ReplaySaver.delete(name);
+        }
+
         ReplayAPI.getInstance().recordReplay(name, player, player);
-        player.sendMessage(ReplaySystem.PREFIX + "Started recording " + name + " for " + durationSeconds + " seconds.");
+        Messages.REPLAY_GUI_STARTED.arg("replay", name).arg("duration", durationSeconds).send(player);
 
         new BukkitRunnable() {
             @Override
@@ -129,5 +153,10 @@ public class ReplayGuiCommand extends SubCommand {
 
     private static final class PendingReplay {
         private String name;
+		private final boolean force;
+
+		private PendingReplay(boolean force) {
+			this.force = force;
+		}
     }
 }

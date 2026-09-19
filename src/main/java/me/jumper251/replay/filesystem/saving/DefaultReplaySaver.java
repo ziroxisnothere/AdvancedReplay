@@ -38,7 +38,7 @@ public class DefaultReplaySaver implements IReplaySaver {
 
         if (!DIR.exists()) DIR.mkdirs();
 
-        File file = new File(DIR, replay.getId() + ".replay");
+        File file = new File(DIR, storageName(replay.getData().getCreator(), replay.getId()) + ".replay");
 
 
         try {
@@ -67,7 +67,7 @@ public class DefaultReplaySaver implements IReplaySaver {
             @Override
             public Replay getValue() {
 
-                File file = new File(DIR, replayName + ".replay");
+                File file = findReplayFile(replayName);
 
                 try (FileInputStream fileIn = new FileInputStream(file);
                      GZIPInputStream gIn = new GZIPInputStream(fileIn);
@@ -90,16 +90,14 @@ public class DefaultReplaySaver implements IReplaySaver {
     public boolean replayExists(String replayName) {
         if (!isValidName(replayName)) return false;
 
-        File file = new File(DIR, replayName + ".replay");
-
-        return file.exists();
+        return findReplayFile(replayName) != null;
     }
 
     @Override
     public void deleteReplay(String replayName) {
-        File file = new File(DIR, replayName + ".replay");
+        File file = findReplayFile(replayName);
 
-        if (file.exists()) file.delete();
+        if (file != null) file.delete();
     }
 
     public void reformatAll() {
@@ -122,7 +120,7 @@ public class DefaultReplaySaver implements IReplaySaver {
                 LogUtils.log("Reformatting: " + replayName);
 
                 try {
-                    File file = new File(DIR, replayName + ".replay");
+                    File file = findReplayFile(replayName);
 
                     FileInputStream fileIn = new FileInputStream(file);
                     ObjectInputStream objectIn = new ObjectInputStream(fileIn);
@@ -151,11 +149,29 @@ public class DefaultReplaySaver implements IReplaySaver {
         if (DIR.exists()) {
             for (File file : DIR.listFiles()) {
                 if (file.isFile() && file.getName().endsWith(".replay")) {
-                    files.add(file.getName().replaceAll("\\.replay", ""));
+                    String replayName = file.getName().replaceAll("\\.replay$", "");
+                    int separator = replayName.indexOf('-');
+                    files.add(separator >= 0 ? replayName.substring(separator + 1) : replayName);
                 }
             }
         }
         return files;
+    }
+
+    private static String storageName(String creator, String replayName) {
+        String safeCreator = creator == null || creator.isBlank() ? "CONSOLE" : creator;
+        return safeCreator + "-" + replayName;
+    }
+
+    private File findReplayFile(String replayName) {
+        if (!isValidName(replayName) || !DIR.exists()) return null;
+
+        File legacyFile = new File(DIR, replayName + ".replay");
+        if (legacyFile.isFile()) return legacyFile;
+
+        File[] files = DIR.listFiles((dir, fileName) ->
+                fileName.endsWith("-" + replayName + ".replay"));
+        return files != null && files.length > 0 ? files[0] : null;
     }
 
 }
