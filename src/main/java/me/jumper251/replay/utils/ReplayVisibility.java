@@ -31,7 +31,7 @@ public final class ReplayVisibility {
 
     public static boolean isPublic(String storageKey) {
         load();
-        return VALUES.getOrDefault(storageKey, false);
+        return VALUES.getOrDefault(storageKey, true);
     }
 
     public static void setPublic(String storageKey, boolean visible) {

@@ -40,9 +40,11 @@ public class ReplayGuiCommand extends SubCommand {
 
     private static final Pattern DURATION_PATTERN = Pattern.compile("^(\\d+)([sm])$", Pattern.CASE_INSENSITIVE);
     private static final String LIST_TITLE = "§8Your Replays";
+    private static final String PUBLIC_LIST_TITLE = "§8Public Replays";
     private static final String DELETE_TITLE = "§8Delete Replay?";
     private static final String VISIBILITY_TITLE = "§8Replay Visibility";
     private static final int CREATE_SLOT = 49;
+    private static final int PUBLIC_LIST_SLOT = 8;
     private static final int CANCEL_DELETE_SLOT = 11;
     private static final int CONFIRM_DELETE_SLOT = 15;
     private static final int PRIVATE_SLOT = 11;
@@ -74,8 +76,18 @@ public class ReplayGuiCommand extends SubCommand {
     }
 
     public static void openList(Player player) {
-        Map<String, String> replays = getVisibleReplays(player.getName());
+        Map<String, String> replays = getOwnReplays(player.getName());
+        openList(player, replays, false);
+    }
+
+    private static void openPublicList(Player player) {
+        Map<String, String> replays = getPublicReplays(player.getName());
+        openList(player, replays, true);
+    }
+
+    private static void openList(Player player, Map<String, String> replays, boolean publicOnly) {
         Inventory inventory = Bukkit.createInventory(null, 54, LIST_TITLE);
+        if (publicOnly) inventory = Bukkit.createInventory(null, 54, PUBLIC_LIST_TITLE);
         Map<Integer, String> items = new HashMap<>();
 
         int slot = 0;
@@ -100,6 +112,14 @@ public class ReplayGuiCommand extends SubCommand {
         create.setItemMeta(createMeta);
         inventory.setItem(CREATE_SLOT, create);
 
+        if (!publicOnly) {
+            ItemStack publicList = button(Material.COMPASS, "§bPublic Replays");
+            ItemMeta publicMeta = publicList.getItemMeta();
+            publicMeta.setLore(Collections.singletonList("§7View all Public Replays"));
+            publicList.setItemMeta(publicMeta);
+            inventory.setItem(PUBLIC_LIST_SLOT, publicList);
+        }
+
         LIST_ITEMS.put(player.getUniqueId(), items);
         player.openInventory(inventory);
     }
@@ -109,11 +129,16 @@ public class ReplayGuiCommand extends SubCommand {
         Player player = (Player) event.getWhoClicked();
         String title = event.getView().getTitle();
 
-        if (LIST_TITLE.equals(title)) {
+        if (LIST_TITLE.equals(title) || PUBLIC_LIST_TITLE.equals(title)) {
             event.setCancelled(true);
             if (event.getRawSlot() < 0 || event.getRawSlot() >= event.getView().getTopInventory().getSize()) return true;
 
-            if (event.getRawSlot() == CREATE_SLOT) {
+            if (LIST_TITLE.equals(title) && event.getRawSlot() == PUBLIC_LIST_SLOT) {
+                openPublicList(player);
+                return true;
+            }
+
+            if (LIST_TITLE.equals(title) && event.getRawSlot() == CREATE_SLOT) {
                 player.closeInventory();
                 begin(player, FORCE_MODE.getOrDefault(player.getUniqueId(), false));
                 return true;
@@ -122,7 +147,12 @@ public class ReplayGuiCommand extends SubCommand {
             String replay = LIST_ITEMS.getOrDefault(player.getUniqueId(), Collections.emptyMap()).get(event.getRawSlot());
             if (replay == null) return true;
 
-            if (event.getClick() == ClickType.DROP) {
+            if (PUBLIC_LIST_TITLE.equals(title)) {
+                if (event.getClick() == ClickType.LEFT) {
+                    player.closeInventory();
+                    playPublic(player, replay);
+                }
+            } else if (event.getClick() == ClickType.DROP) {
                 openDeleteConfirmation(player, replay);
             } else if (event.getClick() == ClickType.RIGHT) {
                 openVisibilityMenu(player, replay);
@@ -210,9 +240,38 @@ public class ReplayGuiCommand extends SubCommand {
         return result;
     }
 
+    private static Map<String, String> getOwnReplays(String playerName) {
+        Map<String, String> result = new java.util.LinkedHashMap<>();
+        if (ReplaySaver.replaySaver instanceof DefaultReplaySaver) {
+            for (String key : ((DefaultReplaySaver) ReplaySaver.replaySaver).getReplayKeysForCreator(playerName)) {
+                result.put(key, displayName(key));
+            }
+            return result;
+        }
+        return getVisibleReplays(playerName);
+    }
+
+    private static Map<String, String> getPublicReplays(String playerName) {
+        Map<String, String> result = new java.util.LinkedHashMap<>();
+        if (ReplaySaver.replaySaver instanceof DefaultReplaySaver) {
+            for (String key : ((DefaultReplaySaver) ReplaySaver.replaySaver).getPublicReplayKeys(playerName)) {
+                result.put(key, displayName(key));
+            }
+            return result;
+        }
+        for (String key : ReplaySaver.getReplays()) {
+            if (ReplayVisibility.isPublic(key)) result.put(key, key);
+        }
+        return result;
+    }
+
     private static void play(Player player, String name) {
         if (ReplayHelper.replaySessions.containsKey(player.getName())) return;
         ReplayAPI.getInstance().playReplay(name, player);
+    }
+
+    private static void playPublic(Player player, String storageKey) {
+        if (ReplayVisibility.isPublic(storageKey)) play(player, storageKey);
     }
 
     private static String displayName(String key) {
