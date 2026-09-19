@@ -59,10 +59,10 @@ public class WrapperPlayServerPlayerInfo extends AbstractPacket {
     }
 
     public void setData(List<PlayerInfoData> value) {
-        if (VersionUtil.isBetween(VersionUtil.VersionEnum.V1_19, VersionUtil.VersionEnum.V1_21_10)) {
-            handle.getPlayerInfoDataLists().write(1, value);
-        } else {
-            handle.getPlayerInfoDataLists().write(0, value);
-        }
+        // ProtocolLib exposes this list at different indexes depending on the
+        // packet structure. Use the structure that is actually available.
+        var dataLists = handle.getPlayerInfoDataLists();
+        int dataIndex = dataLists.size() > 1 ? 1 : 0;
+        dataLists.write(dataIndex, value);
     }
 }

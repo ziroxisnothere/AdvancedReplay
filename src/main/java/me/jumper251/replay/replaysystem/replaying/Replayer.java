@@ -59,6 +59,8 @@ public class Replayer {
 	private double speed, tmpTicks;
 	
 	private boolean paused, started;
+
+	private boolean stopped;
 	
 	private ReplayingUtils utils;
 	private ReplaySession session;
@@ -73,6 +75,7 @@ public class Replayer {
 		this.utils = new ReplayingUtils(this);
 		this.session = new ReplaySession(this);
 		this.paused = false;
+		this.stopped = false;
 	}
 	
 	
@@ -180,9 +183,15 @@ public class Replayer {
 	}
 	
 	public void stop() {
+		if (this.stopped) return;
+		this.stopped = true;
+
 		sendMessage(Messages.REPLAYING_FINISHED_WATCHING.getBuilder());
 		
-		this.run.cancel();
+		if (this.run != null) {
+			this.run.cancel();
+			this.run = null;
+		}
 		this.getReplay().getData().getActions().clear();
 		
 		for (INPC npc : this.npcs.values()) {
