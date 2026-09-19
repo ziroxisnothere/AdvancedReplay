@@ -15,6 +15,9 @@ permissions:
     description: Permission to use the replay command
   replay.command.start:
     default: op
+  replay.command.gui:
+    description: Use the interactive replay GUI command
+    default: op
   replay.command.stop:
     default: op
   replay.command.info:

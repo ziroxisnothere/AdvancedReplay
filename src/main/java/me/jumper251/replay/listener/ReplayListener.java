@@ -6,6 +6,7 @@ import java.util.Arrays;
 
 
 import me.jumper251.replay.filesystem.*;
+import me.jumper251.replay.commands.replay.ReplayGuiCommand;
 import me.jumper251.replay.legacy.LegacyUtils;
 import me.jumper251.replay.utils.VersionUtil;
 import me.jumper251.replay.utils.version.MaterialBridge;
@@ -21,6 +22,7 @@ import org.bukkit.event.entity.FoodLevelChangeEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.player.PlayerChangedWorldEvent;
+import org.bukkit.event.player.AsyncPlayerChatEvent;
 import org.bukkit.event.player.PlayerDropItemEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
@@ -41,6 +43,11 @@ import me.jumper251.replay.replaysystem.utils.entities.INPC;
 
 
 public class ReplayListener extends AbstractListener {
+
+	@EventHandler(priority = EventPriority.HIGHEST)
+	public void onChat(AsyncPlayerChatEvent e) {
+		ReplayGuiCommand.handleChat(e);
+	}
 
 	@SuppressWarnings("deprecation")
 	@EventHandler (priority = EventPriority.MONITOR)
@@ -199,6 +206,7 @@ public class ReplayListener extends AbstractListener {
 	@EventHandler
 	public void onQuit(PlayerQuitEvent e) {
 		Player p = e.getPlayer();	
+		ReplayGuiCommand.cancel(p);
 		if (ReplayHelper.replaySessions.containsKey(p.getName())) {
 			Replayer replayer = ReplayHelper.replaySessions.get(p.getName());
 			replayer.stop();

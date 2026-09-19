@@ -21,12 +21,13 @@ public class ReplayCommand extends AbstractCommand {
 				.notFound(Messages.COMMAND_NOTFOUND.getFullMessage());
 	}
 
-	@Override
-	protected SubCommand[] setupCommands() {
-		
-		return new SubCommand[] { new ReplayStartCommand(this), 
-				new ReplayStopCommand(this).addAlias("save"), 
-				new ReplayPlayCommand(this), 
+		@Override
+		protected SubCommand[] setupCommands() {
+
+			return new SubCommand[] { new ReplayStartCommand(this),
+					new ReplayGuiCommand(this),
+					new ReplayStopCommand(this).addAlias("save"),
+					new ReplayPlayCommand(this),
 				new ReplayDeleteCommand(this).addAlias("remove"),
 				new ReplayJumpCommand(this),
 				new ReplayLeaveCommand(this),
