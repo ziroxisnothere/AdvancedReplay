@@ -158,6 +158,22 @@ public class DefaultReplaySaver implements IReplaySaver {
         return files;
     }
 
+    public List<String> getReplaysForCreator(String creator) {
+        List<String> files = new ArrayList<>();
+        if (creator == null || !DIR.exists()) return files;
+
+        String prefix = creator + "-";
+        File[] replayFiles = DIR.listFiles((dir, fileName) ->
+                fileName.startsWith(prefix) && fileName.endsWith(".replay"));
+        if (replayFiles == null) return files;
+
+        for (File file : replayFiles) {
+            String storedName = file.getName().replaceAll("\\.replay$", "");
+            files.add(storedName.substring(prefix.length()));
+        }
+        return files;
+    }
+
     private static String storageName(String creator, String replayName) {
         String safeCreator = creator == null || creator.isBlank() ? "CONSOLE" : creator;
         return safeCreator + "-" + replayName;

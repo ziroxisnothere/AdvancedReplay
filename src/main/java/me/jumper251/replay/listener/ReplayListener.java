@@ -22,7 +22,7 @@ import org.bukkit.event.entity.FoodLevelChangeEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.player.PlayerChangedWorldEvent;
-import org.bukkit.event.block.SignChangeEvent;
+import org.bukkit.event.player.AsyncPlayerChatEvent;
 import org.bukkit.event.player.PlayerDropItemEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
@@ -45,8 +45,8 @@ import me.jumper251.replay.replaysystem.utils.entities.INPC;
 public class ReplayListener extends AbstractListener {
 
 	@EventHandler(priority = EventPriority.HIGHEST)
-	public void onSignChange(SignChangeEvent e) {
-		ReplayGuiCommand.handleSignChange(e);
+	public void onChat(AsyncPlayerChatEvent e) {
+		ReplayGuiCommand.handleChat(e);
 	}
 
 	@SuppressWarnings("deprecation")
@@ -135,7 +135,9 @@ public class ReplayListener extends AbstractListener {
 	@SuppressWarnings("deprecation")
 	@EventHandler
 	public void onClick(InventoryClickEvent e) {
-        if (e.getWhoClicked() instanceof Player) {
+		if (ReplayGuiCommand.handleInventoryClick(e)) return;
+
+	        if (e.getWhoClicked() instanceof Player) {
             Player p = (Player) e.getWhoClicked();
             if (ReplayHelper.replaySessions.containsKey(p.getName())) {
                 e.setCancelled(true);
