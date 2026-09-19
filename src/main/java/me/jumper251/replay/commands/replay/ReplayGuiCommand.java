@@ -37,6 +37,7 @@ public class ReplayGuiCommand extends SubCommand {
 
     private static final Pattern DURATION_PATTERN = Pattern.compile("^(\\d+)([sm])$", Pattern.CASE_INSENSITIVE);
     private static final ConcurrentMap<UUID, PendingReplay> PENDING = new ConcurrentHashMap<>();
+    private static final ConcurrentMap<String, UUID> RESERVED_BLOCKS = new ConcurrentHashMap<>();
 
     public ReplayGuiCommand(AbstractCommand parent) {
         super(parent, "gui", "Starts a replay by asking for its name and duration in a sign", "gui [-force]", true);
@@ -64,7 +65,7 @@ public class ReplayGuiCommand extends SubCommand {
 
     private static void begin(Player player, boolean force) {
         cancel(player);
-        PendingReplay pending = new PendingReplay(force);
+        PendingReplay pending = new PendingReplay(force, player.getUniqueId());
         PENDING.put(player.getUniqueId(), pending);
         openSign(player, pending);
     }
@@ -77,10 +78,11 @@ public class ReplayGuiCommand extends SubCommand {
 
         event.setCancelled(true);
         String answer = event.getLine(0) == null ? "" : event.getLine(0).trim();
-        restoreSign(pending);
+        restoreBlock(pending);
 
         if (answer.equalsIgnoreCase("cancel")) {
             PENDING.remove(player.getUniqueId());
+            restoreSign(pending);
             return;
         }
 
@@ -106,6 +108,7 @@ public class ReplayGuiCommand extends SubCommand {
 
         PENDING.remove(player.getUniqueId());
         cancelCleanup(pending);
+        restoreSign(pending);
         int durationTicks = (int) (durationSeconds * 20L);
         String name = pending.name;
         Bukkit.getScheduler().runTask(ReplaySystem.getInstance(),
@@ -122,7 +125,12 @@ public class ReplayGuiCommand extends SubCommand {
             if (!player.isOnline() || PENDING.get(player.getUniqueId()) != pending) return;
 
             if (pending.block == null) {
-                pending.block = findTemporaryBlock(player);
+                pending.block = findTemporaryBlock(player, player.getUniqueId(), pending);
+                if (pending.block == null) {
+                    PENDING.remove(player.getUniqueId(), pending);
+                    showActionBar(player, "Could not open the Replay input right now. Try again.");
+                    return;
+                }
                 pending.originalData = pending.block.getBlockData().clone();
             } else {
                 pending.block.setBlockData(pending.originalData, false);
@@ -144,19 +152,46 @@ public class ReplayGuiCommand extends SubCommand {
         Bukkit.getScheduler().runTaskLater(ReplaySystem.getInstance(), () -> openSign(player, pending), 1L);
     }
 
-    private static Block findTemporaryBlock(Player player) {
+    private static Block findTemporaryBlock(Player player, UUID playerId, PendingReplay pending) {
         Location base = player.getLocation().getBlock().getLocation();
-        Block below = base.clone().subtract(0, 1, 0).getBlock();
-        if (below.getType().isAir() || below.isPassable()) return below;
-        return base.getBlock();
+        int[][] offsets = {
+                {0, -1, 0}, {0, 0, 0}, {1, -1, 0}, {-1, -1, 0},
+                {0, -1, 1}, {0, -1, -1}, {1, 0, 0}, {-1, 0, 0},
+                {0, 0, 1}, {0, 0, -1}
+        };
+
+        for (int[] offset : offsets) {
+            Block candidate = base.clone().add(offset[0], offset[1], offset[2]).getBlock();
+            if (!candidate.getType().isAir() && !candidate.isPassable()) continue;
+
+            String key = blockKey(candidate);
+            if (RESERVED_BLOCKS.putIfAbsent(key, playerId) == null) {
+                pending.blockKey = key;
+                return candidate;
+            }
+        }
+
+        return null;
     }
 
     private static void restoreSign(PendingReplay pending) {
         cancelCleanup(pending);
+        restoreBlock(pending);
+        if (pending.blockKey != null) {
+            RESERVED_BLOCKS.remove(pending.blockKey, pending.owner);
+            pending.blockKey = null;
+        }
+    }
+
+    private static void restoreBlock(PendingReplay pending) {
         if (pending.block != null && pending.originalData != null
                 && pending.block.getType() == Material.OAK_SIGN) {
             pending.block.setBlockData(pending.originalData, false);
         }
+    }
+
+    private static String blockKey(Block block) {
+        return block.getWorld().getUID() + ":" + block.getX() + ":" + block.getY() + ":" + block.getZ();
     }
 
     private static void scheduleCleanup(Player player, PendingReplay pending) {
@@ -233,15 +268,18 @@ public class ReplayGuiCommand extends SubCommand {
 
     private static final class PendingReplay {
         private final boolean force;
+        private final UUID owner;
         private final Phase initialPhase = Phase.NAME;
         private Phase phase = initialPhase;
         private String name;
         private Block block;
         private BlockData originalData;
         private BukkitTask cleanupTask;
+        private String blockKey;
 
-        private PendingReplay(boolean force) {
+        private PendingReplay(boolean force, UUID owner) {
             this.force = force;
+            this.owner = owner;
         }
     }
 }
