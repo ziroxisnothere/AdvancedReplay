@@ -128,7 +128,9 @@ public class ReplayGuiCommand extends SubCommand {
             ReplaySaver.delete(name);
         }
 
-        ReplayAPI.getInstance().recordReplay(name, player, player);
+        // Cast explicitly to select the CommandSender overload; otherwise
+        // Java selects recordReplay(String, Player...) and the creator becomes null.
+        ReplayAPI.getInstance().recordReplay(name, (CommandSender) player, player);
         Messages.REPLAY_GUI_STARTED.arg("replay", name).arg("duration", durationSeconds).send(player);
 
         new BukkitRunnable() {
